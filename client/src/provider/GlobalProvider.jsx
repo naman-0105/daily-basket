@@ -22,9 +22,15 @@ const GlobalProvider = ({children}) => {
     const [totalQty,setTotalQty] = useState(0)
     const cartItem = useSelector(state => state.cartItem.cart)
     const user = useSelector(state => state?.user)
+    const [isInitialLoad, setIsInitialLoad] = useState(true)
 
     // Handle unauthorized access
     const handleUnauthorized = (error) => {
+        if (isInitialLoad) {
+            setIsInitialLoad(false)
+            return Promise.reject(error);
+        }
+        
         if (error.response?.status === 401 || error.response?.status === 500) {
             handleLogoutOut();
             navigate('/login');
@@ -163,9 +169,9 @@ const GlobalProvider = ({children}) => {
 
     useEffect(()=>{
       fetchCartItem()
-      handleLogoutOut()
       fetchAddress()
       fetchOrder()
+      setIsInitialLoad(false)
     },[user])
     
     return(
