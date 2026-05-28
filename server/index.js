@@ -4,6 +4,8 @@ import dotenv from 'dotenv'
 import cookieParser from 'cookie-parser'
 import morgan from 'morgan'
 import helmet from 'helmet'
+import compression from 'compression'
+import './config/redis.js'
 import connectDB from './config/connectDB.js'
 import userRouter from './route/user.route.js'
 import categoryRouter from './route/category.route.js'
@@ -42,11 +44,12 @@ app.use(cors({
 app.use(express.json())
 app.use(cookieParser())
 app.use(morgan('combined'))
+app.use(compression())
 app.use(helmet({
     crossOriginResourcePolicy : false
 }))
 
-const PORT = 8080 || process.env.PORT 
+const PORT = process.env.PORT || 8080;
 
 app.get("/",(request,response)=>{
     response.json({

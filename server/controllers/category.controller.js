@@ -3,6 +3,7 @@
 import CategoryModel from "../models/category.model.js";
 import SubCategoryModel from "../models/subCategory.model.js";
 import ProductModel from "../models/product.model.js";
+import { safeRedisDel, safeRedisGet, safeRedisSet } from "../config/redis.js";
 
 export const AddCategoryController = async(request,response)=>{
     try {
@@ -22,6 +23,8 @@ export const AddCategoryController = async(request,response)=>{
         })
 
         const saveCategory = await addCategory.save()
+
+        await safeRedisDel("categories");
 
         if(!saveCategory){
             return response.status(500).json({
@@ -47,24 +50,44 @@ export const AddCategoryController = async(request,response)=>{
     }
 }
 
-export const getCategoryController = async(request,response)=>{
+export const getCategoryController = async (request, response) => {
     try {
-        
-        const data = await CategoryModel.find().sort({ createdAt : -1 })
+        const cachedCategories = await safeRedisGet("categories");
+
+        if (cachedCategories) {
+            try {
+                return response.json({
+                    data: JSON.parse(cachedCategories),
+                    source: "redis-cache",
+                    error: false,
+                    success: true
+                });
+            } catch (parseError) {
+                console.log("Redis parse error:", parseError.message || parseError);
+            }
+        }
+
+        const data = await CategoryModel.find().sort({ createdAt: -1 }).lean();
+
+        await safeRedisSet("categories", JSON.stringify(data));
 
         return response.json({
-            data : data,
-            error : false,
-            success : true
-        })
+            data: data,
+            source: "mongodb",
+            error: false,
+            success: true
+        });
+
     } catch (error) {
+        console.log(error);
+
         return response.status(500).json({
-            message : error.messsage || error,
-            error : true,
-            success : false
-        })
+            message: error.message || error,
+            error: true,
+            success: false
+        });
     }
-}
+};
 
 export const updateCategoryController = async(request,response)=>{
     try {
@@ -76,6 +99,8 @@ export const updateCategoryController = async(request,response)=>{
            name, 
            image 
         })
+
+        await safeRedisDel("categories");
 
         return response.json({
             message : "Updated Category",
@@ -118,6 +143,8 @@ export const deleteCategoryController = async(request,response)=>{
 
         const deleteCategory = await CategoryModel.deleteOne({ _id : _id})
 
+        await safeRedisDel("categories");
+
         return response.json({
             message : "Delete category successfully",
             data : deleteCategory,
@@ -126,6 +153,7 @@ export const deleteCategoryController = async(request,response)=>{
         })
 
     } catch (error) {
+
        return response.status(500).json({
             message : error.message || error,
             success : false,

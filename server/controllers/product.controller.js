@@ -1,4 +1,5 @@
 import ProductModel from "../models/product.model.js";
+import { invalidateRedisPrefix, safeRedisGet, safeRedisSet } from "../config/redis.js";
 
 export const createProductController = async(request,response)=>{
     try {
@@ -15,7 +16,7 @@ export const createProductController = async(request,response)=>{
             more_details,
         } = request.body 
 
-        if(!name || !image[0] || !category[0] || !subCategory[0] || !unit || !price || !description ){
+        if(!name || !image?.[0] || !category?.[0] || !subCategory?.[0] || !unit || !price || !description ){
             return response.status(400).json({
                 message : "Enter required fields",
                 error : true,
@@ -36,6 +37,9 @@ export const createProductController = async(request,response)=>{
             more_details,
         })
         const saveProduct = await product.save()
+
+        await invalidateRedisPrefix("product_*");
+        await invalidateRedisPrefix("category_products_*");
 
         return response.json({
             message : "Product Created Successfully",
@@ -75,7 +79,7 @@ export const getProductController = async(request,response)=>{
         const skip = (page - 1) * limit
 
         const [data,totalCount] = await Promise.all([
-            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limit).populate('category subCategory'),
+            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limit).populate('category subCategory').lean(),
             ProductModel.countDocuments(query)
         ])
 
@@ -108,9 +112,31 @@ export const getProductByCategory = async(request,response)=>{
             })
         }
 
+        const cacheKey = `category_products_${id}`;
+
+        const cachedProducts = await safeRedisGet(cacheKey);
+
+        if (cachedProducts) {
+            try {
+                return response.json({
+                    message: "category product list",
+                    data: JSON.parse(cachedProducts),
+                    source: "redis-cache",
+                    error: false,
+                    success: true
+                });
+            } catch (parseError) {
+                console.log("Redis parse error:", parseError.message || parseError);
+            }
+        }
+
         const product = await ProductModel.find({ 
             category : { $in : id }
-        }).limit(15)
+        })
+        .limit(15)
+        .lean();
+
+        await safeRedisSet(cacheKey, JSON.stringify(product));
 
         return response.json({
             message : "category product list",
@@ -129,7 +155,7 @@ export const getProductByCategory = async(request,response)=>{
 
 export const getProductByCategoryAndSubCategory  = async(request,response)=>{
     try {
-        const { categoryId,subCategoryId,page,limit } = request.body
+        let { categoryId, subCategoryId, page, limit } = request.body
 
         if(!categoryId || !subCategoryId){
             return response.status(400).json({
@@ -155,7 +181,7 @@ export const getProductByCategoryAndSubCategory  = async(request,response)=>{
         const skip = (page - 1) * limit
 
         const [data,dataCount] = await Promise.all([
-            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limit),
+            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limit).lean(),
             ProductModel.countDocuments(query)
         ])
 
@@ -180,10 +206,29 @@ export const getProductByCategoryAndSubCategory  = async(request,response)=>{
 
 export const getProductDetails = async(request,response)=>{
     try {
-        const { productId } = request.body 
+        const { productId } = request.body;
 
-        const product = await ProductModel.findOne({ _id : productId })
+        const cacheKey = `product_${productId}`;
 
+        const cachedProduct = await safeRedisGet(cacheKey);
+
+        if (cachedProduct) {
+            try {
+                return response.json({
+                    message: "product details",
+                    data: JSON.parse(cachedProduct),
+                    source: "redis-cache",
+                    error: false,
+                    success: true
+                });
+            } catch (parseError) {
+                console.log("Redis parse error:", parseError.message || parseError);
+            }
+        }
+
+        const product = await ProductModel.findOne({ _id : productId }).lean();
+
+        await safeRedisSet(cacheKey, JSON.stringify(product));
 
         return response.json({
             message : "product details",
@@ -218,6 +263,9 @@ export const updateProductDetails = async(request,response)=>{
             ...request.body
         })
 
+        await invalidateRedisPrefix("product_*");
+        await invalidateRedisPrefix("category_products_*");
+
         return response.json({
             message : "updated successfully",
             data : updateProduct,
@@ -248,6 +296,9 @@ export const deleteProductDetails = async(request,response)=>{
         }
 
         const deleteProduct = await ProductModel.deleteOne({_id : _id })
+
+        await invalidateRedisPrefix("product_*");
+        await invalidateRedisPrefix("category_products_*");
 
         return response.json({
             message : "Delete successfully",
@@ -291,7 +342,8 @@ export const searchProduct = async(request, response) => {
                 .populate('subCategory')
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             ProductModel.countDocuments(query)
         ]);
 

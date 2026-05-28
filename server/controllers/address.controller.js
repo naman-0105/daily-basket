@@ -43,7 +43,7 @@ export const getAddressController = async(request,response)=>{
     try {
         const userId = request.userId // middleware auth
 
-        const data = await AddressModel.find({ userId : userId }).sort({ createdAt : -1})
+        const data = await AddressModel.find({ userId : userId }).sort({ createdAt : -1}).lean();
 
         return response.json({
             data : data,

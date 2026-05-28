@@ -58,6 +58,9 @@ productSchema.index({
     description: 'text'
 });
 
+productSchema.index({ category: 1 });
+productSchema.index({ subCategory: 1 });
+
 const ProductModel = mongoose.model('product', productSchema);
 
 export default ProductModel;

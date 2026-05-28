@@ -7,7 +7,7 @@ export const addToCartItemController = async(request,response)=>{
         const { productId } = request.body
         
         if(!productId){
-            return response.status(402).json({
+            return response.status(400).json({
                 message : "Provide productId",
                 error : true,
                 success : false
@@ -17,11 +17,13 @@ export const addToCartItemController = async(request,response)=>{
         const checkItemCart = await CartProductModel.findOne({
             userId : userId,
             productId : productId
-        })
+        }).lean();
 
         if(checkItemCart){
             return response.status(400).json({
-                message : "Item already in cart"
+                message : "Item already in cart",
+                error: true,
+                success: false
             })
         }
 
@@ -61,7 +63,7 @@ export const getCartItemController = async(request,response)=>{
 
         const cartItem =  await CartProductModel.find({
             userId : userId
-        }).populate('productId')
+        }).populate('productId').lean();
 
         return response.json({
             data : cartItem,
@@ -83,7 +85,7 @@ export const updateCartItemQtyController = async(request,response)=>{
         const userId = request.userId 
         const { _id,qty } = request.body
 
-        if(!_id ||  !qty){
+        if(!_id || qty === undefined){
             return response.status(400).json({
                 message : "provide _id, qty"
             })
@@ -128,7 +130,7 @@ export const deleteCartItemQtyController = async(request,response)=>{
       const deleteCartItem  = await CartProductModel.deleteOne({_id : _id, userId : userId })
 
       return response.json({
-        message : "Item remove",
+        message : "Item removed successfully",
         error : false,
         success : true,
         data : deleteCartItem
