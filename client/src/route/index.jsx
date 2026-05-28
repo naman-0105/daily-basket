@@ -1,28 +1,37 @@
 import { createBrowserRouter } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import App from "../App";
-import Home from "../pages/Home";
-import SearchPage from "../pages/SearchPage";
-import Login from "../pages/Login";
-import Register from "../pages/Register";
-import ForgotPassword from "../pages/ForgotPassword";
-import OtpVerification from "../pages/OtpVerification";
-import ResetPassword from "../pages/ResetPassword";
-import UserMenuMobile from "../pages/UserMenuMobile";
-import Dashboard from "../layouts/Dashboard";
-import Profile from "../pages/Profile";
-import MyOrders from "../pages/MyOrders";
-import Address from "../pages/Address";
-import CategoryPage from "../pages/CategoryPage";
-import SubCategoryPage from "../pages/SubCategoryPage";
-import UploadProduct from "../pages/UploadProduct";
-import ProductAdmin from "../pages/ProductAdmin";
-import AdminPermision from "../layouts/AdminPermision";
-import ProductListPage from "../pages/ProductListPage";
-import ProductDisplayPage from "../pages/ProductDisplayPage";
-import CartMobile from "../pages/CartMobile";
-import CheckoutPage from "../pages/CheckoutPage";
-import Success from "../pages/Success";
-import Cancel from "../pages/Cancel";
+import Loading from "../components/Loading";
+
+const Home = lazy(() => import("../pages/Home"));
+const SearchPage = lazy(() => import("../pages/SearchPage"));
+const Login = lazy(() => import("../pages/Login"));
+const Register = lazy(() => import("../pages/Register"));
+const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
+const OtpVerification = lazy(() => import("../pages/OtpVerification"));
+const ResetPassword = lazy(() => import("../pages/ResetPassword"));
+const UserMenuMobile = lazy(() => import("../pages/UserMenuMobile"));
+const Dashboard = lazy(() => import("../layouts/Dashboard"));
+const Profile = lazy(() => import("../pages/Profile"));
+const MyOrders = lazy(() => import("../pages/MyOrders"));
+const Address = lazy(() => import("../pages/Address"));
+const CategoryPage = lazy(() => import("../pages/CategoryPage"));
+const SubCategoryPage = lazy(() => import("../pages/SubCategoryPage"));
+const UploadProduct = lazy(() => import("../pages/UploadProduct"));
+const ProductAdmin = lazy(() => import("../pages/ProductAdmin"));
+const AdminPermision = lazy(() => import("../layouts/AdminPermision"));
+const ProductListPage = lazy(() => import("../pages/ProductListPage"));
+const ProductDisplayPage = lazy(() => import("../pages/ProductDisplayPage"));
+const CartMobile = lazy(() => import("../pages/CartMobile"));
+const CheckoutPage = lazy(() => import("../pages/CheckoutPage"));
+const Success = lazy(() => import("../pages/Success"));
+const Cancel = lazy(() => import("../pages/Cancel"));
+
+const SuspenseLayout = ({ children }) => (
+    <Suspense fallback={<Loading />}>
+        {children}
+    </Suspense>
+);
 
 const router = createBrowserRouter([
     {
@@ -31,67 +40,67 @@ const router = createBrowserRouter([
         children : [
             {
                 path : "",
-                element : <Home/>
+                element : <SuspenseLayout><Home/></SuspenseLayout>
             },
             {
                 path : "search",
-                element : <SearchPage/>
+                element : <SuspenseLayout><SearchPage/></SuspenseLayout>
             },
             {
                 path : 'login',
-                element : <Login/>
+                element : <SuspenseLayout><Login/></SuspenseLayout>
             },
             {
                 path : "register",
-                element : <Register/>
+                element : <SuspenseLayout><Register/></SuspenseLayout>
             },
             {
                 path : "forgot-password",
-                element : <ForgotPassword/>
+                element : <SuspenseLayout><ForgotPassword/></SuspenseLayout>
             },
             {
                 path : "verification-otp",
-                element : <OtpVerification/>
+                element : <SuspenseLayout><OtpVerification/></SuspenseLayout>
             },
             {
                 path : "reset-password",
-                element : <ResetPassword/>
+                element : <SuspenseLayout><ResetPassword/></SuspenseLayout>
             },
             {
                 path : "user",
-                element : <UserMenuMobile/>
+                element : <SuspenseLayout><UserMenuMobile/></SuspenseLayout>
             },
             {
                 path : "dashboard",
-                element : <Dashboard/>,
+                element : <SuspenseLayout><Dashboard/></SuspenseLayout>,
                 children : [
                     {
                         path : "profile",
-                        element : <Profile/>
+                        element : <SuspenseLayout><Profile/></SuspenseLayout>
                     },
                     {
                         path : "myorders",
-                        element : <MyOrders/>
+                        element : <SuspenseLayout><MyOrders/></SuspenseLayout>
                     },
                     {
                         path : "address",
-                        element : <Address/>
+                        element : <SuspenseLayout><Address/></SuspenseLayout>
                     },
                     {
                         path : 'category',
-                        element : <AdminPermision><CategoryPage/></AdminPermision>
+                        element : <AdminPermision><SuspenseLayout><CategoryPage/></SuspenseLayout></AdminPermision>
                     },
                     {
                         path : "subcategory",
-                        element : <AdminPermision><SubCategoryPage/></AdminPermision>
+                        element : <AdminPermision><SuspenseLayout><SubCategoryPage/></SuspenseLayout></AdminPermision>
                     },
                     {
                         path : 'upload-product',
-                        element : <AdminPermision><UploadProduct/></AdminPermision>
+                        element : <AdminPermision><SuspenseLayout><UploadProduct/></SuspenseLayout></AdminPermision>
                     },
                     {
                         path : 'product',
-                        element : <AdminPermision><ProductAdmin/></AdminPermision>
+                        element : <AdminPermision><SuspenseLayout><ProductAdmin/></SuspenseLayout></AdminPermision>
                     }
                 ]
             },
@@ -100,29 +109,29 @@ const router = createBrowserRouter([
                 children : [
                     {
                         path : ":subCategory",
-                        element : <ProductListPage/>
+                        element : <SuspenseLayout><ProductListPage/></SuspenseLayout>
                     }
                 ]
             },
             {
                 path : "product/:product",
-                element : <ProductDisplayPage/>
+                element : <SuspenseLayout><ProductDisplayPage/></SuspenseLayout>
             },
             {
                 path : 'cart',
-                element : <CartMobile/>
+                element : <SuspenseLayout><CartMobile/></SuspenseLayout>
             },
             {
                 path : "checkout",
-                element : <CheckoutPage/>
+                element : <SuspenseLayout><CheckoutPage/></SuspenseLayout>
             },
             {
                 path : "success",
-                element : <Success/>
+                element : <SuspenseLayout><Success/></SuspenseLayout>
             },
             {
                 path : 'cancel',
-                element : <Cancel/>
+                element : <SuspenseLayout><Cancel/></SuspenseLayout>
             }
         ]
     }

@@ -18,7 +18,6 @@ import CartMobileLink from './components/CartMobile';
 function App() {
   const dispatch = useDispatch()
   const location = useLocation()
-  
 
   const fetchUser = async() => {
     try {
@@ -68,9 +67,14 @@ function App() {
   
 
   useEffect(()=>{
-    fetchUser()
-    fetchCategory()
-    fetchSubCategory()
+    const fetchData = async () => {
+        await Promise.all([
+            fetchUser(),
+            fetchCategory(),
+            fetchSubCategory()
+        ])
+    }
+    fetchData()
     // fetchCartItem()
   },[])
 
