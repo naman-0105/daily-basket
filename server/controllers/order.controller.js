@@ -62,17 +62,19 @@ export async function paymentController(request,response){
         const user = await UserModel.findById(userId)
 
         const line_items  = list_items.map(item =>{
+            const images = Array.isArray(item.productId.image) ? item.productId.image : (item.productId.image ? [item.productId.image] : [])
+
             return{
                price_data : {
                     currency : 'inr',
                     product_data : {
                         name : item.productId.name,
-                        images : item.productId.image,
+                        images : images,
                         metadata : {
                             productId : item.productId._id
                         }
                     },
-                    unit_amount : pricewithDiscount(item.productId.price,item.productId.discount) * 100   
+                    unit_amount : Math.round(pricewithDiscount(item.productId.price,item.productId.discount) * 100)
                },
                adjustable_quantity : {
                     enabled : true,
@@ -81,6 +83,8 @@ export async function paymentController(request,response){
                quantity : item.quantity 
             }
         })
+
+        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
 
         const params = {
             submit_type : 'pay',
@@ -92,8 +96,8 @@ export async function paymentController(request,response){
                 addressId : addressId
             },
             line_items : line_items,
-            success_url : `${process.env.FRONTEND_URL}/success`,
-            cancel_url : `${process.env.FRONTEND_URL}/cancel`
+            success_url : `${baseUrl}/success`,
+            cancel_url : `${baseUrl}/cancel`
         }
 
         const session = await Stripe.checkout.sessions.create(params)
@@ -123,6 +127,16 @@ const getOrderProductItems = async({
         for(const item of lineItems.data){
             const product = await Stripe.products.retrieve(item.price.product)
 
+            const existingOrder = await OrderModel.findOne({
+                userId : userId,
+                productId : product.metadata.productId,
+                paymentId : paymentId,
+            })
+
+            if(existingOrder){
+                continue
+            }
+
             const paylod = {
                 userId : userId,
                 orderId : `ORD-${new mongoose.Types.ObjectId()}`,
@@ -147,42 +161,69 @@ const getOrderProductItems = async({
 
 //http://localhost:8080/api/order/webhook
 export async function webhookStripe(request,response){
-    const event = request.body;
     const endPointSecret = process.env.STRIPE_ENDPOINT_WEBHOOK_SECRET_KEY
 
-    console.log("event",event)
-
-    // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed':
-      const session = event.data.object;
-      const lineItems = await Stripe.checkout.sessions.listLineItems(session.id)
-      const userId = session.metadata.userId
-      const orderProduct = await getOrderProductItems(
-        {
-            lineItems : lineItems,
-            userId : userId,
-            addressId : session.metadata.addressId,
-            paymentId  : session.payment_intent,
-            payment_status : session.payment_status,
+    if (!endPointSecret) {
+        return response.status(500).json({
+            message : 'STRIPE_ENDPOINT_WEBHOOK_SECRET_KEY is not configured',
+            error : true,
+            success : false
         })
-    
-      const order = await OrderModel.insertMany(orderProduct)
+    }
 
-        console.log(order)
-        if(Boolean(order[0])){
-            const removeCartItems = await  UserModel.findByIdAndUpdate(userId,{
-                shopping_cart : []
+    try {
+        const sig = request.headers['stripe-signature']
+
+        if (!sig) {
+            return response.status(400).json({
+                message : 'Missing Stripe signature',
+                error : true,
+                success : false
             })
-            const removeCartProductDB = await CartProductModel.deleteMany({ userId : userId})
         }
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
-  }
 
-  // Return a response to acknowledge receipt of the event
-  response.json({received: true});
+        const event = Stripe.webhooks.constructEvent(request.body, sig, endPointSecret);
+
+        // Handle the event
+        switch (event.type) {
+            case 'checkout.session.completed':
+                const session = event.data.object;
+                const lineItems = await Stripe.checkout.sessions.listLineItems(session.id)
+                const userId = session.metadata.userId
+                const orderProduct = await getOrderProductItems({
+                    lineItems : lineItems,
+                    userId : userId,
+                    addressId : session.metadata.addressId,
+                    paymentId  : session.payment_intent,
+                    payment_status : session.payment_status,
+                })
+
+                if(!orderProduct.length){
+                    return response.status(200).json({received: true, duplicate: true});
+                }
+
+                const order = await OrderModel.insertMany(orderProduct)
+
+                if(Boolean(order[0])){
+                    await UserModel.findByIdAndUpdate(userId,{
+                        shopping_cart : []
+                    })
+                    await CartProductModel.deleteMany({ userId : userId})
+                }
+                break;
+            default:
+                console.log(`Unhandled event type ${event.type}`);
+        }
+
+        return response.status(200).json({received: true});
+    } catch (error) {
+        console.error('Stripe webhook error:', error.message)
+        return response.status(400).json({
+            message : error.message || error,
+            error : true,
+            success : false
+        })
+    }
 }
 
 

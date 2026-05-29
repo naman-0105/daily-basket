@@ -41,6 +41,7 @@ app.use(cors({
   }
 }));
 
+app.use('/api/order/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
 app.use(cookieParser())
 app.use(morgan('combined'))
