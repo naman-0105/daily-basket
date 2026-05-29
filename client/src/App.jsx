@@ -21,6 +21,12 @@ function App() {
 
   const fetchUser = async() => {
     try {
+        const token = localStorage.getItem('accesstoken');
+
+        if (!token) {
+            return;
+        }
+
         const userData = await fetchUserDetails()
         if (userData?.data) {
             dispatch(setUserDetails(userData.data))

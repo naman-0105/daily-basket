@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const apiBaseURL = import.meta.env.VITE_API_URL || '';
+const normalizedBaseURL = typeof window !== 'undefined' && window.location.protocol === 'https:' && apiBaseURL.startsWith('http://')
+    ? apiBaseURL.replace('http://', 'https://')
+    : apiBaseURL;
+
 const Axios = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: normalizedBaseURL,
     withCredentials: true
 });
 
@@ -15,5 +20,16 @@ Axios.interceptors.request.use((config) => {
 }, (error) => {
     return Promise.reject(error);
 });
+
+Axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('accesstoken');
+            localStorage.removeItem('refreshToken');
+        }
+        return Promise.reject(error);
+    }
+);
 
 export default Axios;

@@ -26,6 +26,13 @@ const GlobalProvider = ({children}) => {
 
     // Handle unauthorized access
     const handleUnauthorized = (error) => {
+        const token = localStorage.getItem('accesstoken');
+
+        if (!token) {
+            handleLogoutOut();
+            return Promise.reject(error);
+        }
+
         if (isInitialLoad) {
             setIsInitialLoad(false)
             return Promise.reject(error);
@@ -55,6 +62,12 @@ const GlobalProvider = ({children}) => {
 
     const fetchCartItem = async()=>{
         try {
+          const token = localStorage.getItem('accesstoken');
+
+          if (!token) {
+            return;
+          }
+
           const response = await Axios({
             ...SummaryApi.getCartItem
           })
@@ -140,6 +153,12 @@ const GlobalProvider = ({children}) => {
 
     const fetchAddress = async()=>{
       try {
+        const token = localStorage.getItem('accesstoken');
+
+        if (!token) {
+          return;
+        }
+
         const response = await Axios({
           ...SummaryApi.getAddress
         })
@@ -154,6 +173,12 @@ const GlobalProvider = ({children}) => {
     }
     const fetchOrder = async()=>{
       try {
+        const token = localStorage.getItem('accesstoken');
+
+        if (!token) {
+          return;
+        }
+
         const response = await Axios({
           ...SummaryApi.getOrderItems,
         })
