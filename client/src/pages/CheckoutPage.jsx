@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useGlobalContext } from '../provider/GlobalProvider'
 import { DisplayPriceInRupees } from '../utils/DisplayPriceInRupees'
 import AddAddress from '../components/AddAddress'
@@ -14,25 +14,62 @@ const CheckoutPage = () => {
   const { notDiscountTotalPrice, totalPrice, totalQty, fetchCartItem,fetchOrder } = useGlobalContext()
   const [openAddress, setOpenAddress] = useState(false)
   const addressList = useSelector(state => state.addresses.addressList)
-  const [selectAddress, setSelectAddress] = useState(0)
+  const [selectAddress, setSelectAddress] = useState(null)
   const cartItemsList = useSelector(state => state.cartItem.cart)
   const navigate = useNavigate()
 
+  const selectedAddress = typeof selectAddress === 'number' && addressList[selectAddress]?.status !== false
+    ? addressList[selectAddress]
+    : addressList.find(address => address.status !== false) || null
+
+  useEffect(() => {
+    if (addressList.length === 0) {
+      setSelectAddress(null)
+      return
+    }
+
+    const activeAddressIndex = addressList.findIndex(address => address.status !== false)
+
+    if (selectAddress === null || !addressList[selectAddress] || addressList[selectAddress]?.status === false) {
+      if (activeAddressIndex >= 0) {
+        setSelectAddress(activeAddressIndex)
+      }
+    }
+  }, [addressList, selectAddress])
+
   const handleCashOnDelivery = async() => {
       try {
+          if(!selectedAddress?._id){
+            toast.error('Please select a delivery address before placing order')
+            return
+          }
+
           const response = await Axios({
             ...SummaryApi.CashOnDeliveryOrder,
             data : {
               list_items : cartItemsList,
-              addressId : addressList[selectAddress]?._id,
-              subTotalAmt : totalPrice,
-              totalAmt :  totalPrice,
+              addressId : selectedAddress?._id,
             }
           })
 
           const { data : responseData } = response
 
           if(responseData.success){
+              const orderSummary = {
+                orderId : responseData.data?.orderId,
+                paymentType : 'Cash on Delivery',
+                paymentStatus : 'CASH ON DELIVERY',
+                totalAmount : responseData.data?.totalAmount || totalPrice,
+                products : responseData.data?.products || cartItemsList.map(item => ({
+                  productDetails : item.productId,
+                  quantity : item.quantity || 1,
+                  subtotal : Number(item.productId.price || 0) * Number(item.quantity || 1),
+                  price : Number(item.productId.price || 0)
+                })),
+                deliveryAddress : selectedAddress,
+              }
+
+              localStorage.setItem('pendingOrderSummary', JSON.stringify(orderSummary))
               toast.success(responseData.message)
               if(fetchCartItem){
                 fetchCartItem()
@@ -42,19 +79,34 @@ const CheckoutPage = () => {
               }
               navigate('/success',{
                 state : {
-                  text : "Order"
+                  text : "Order",
+                  orderData : orderSummary,
+                  paymentType : 'Cash on Delivery'
                 }
               })
           }
 
       } catch (error) {
+        toast.dismiss()
         AxiosToastError(error)
       }
   }
 
   const handleOnlinePayment = async()=>{
     try {
-        toast.loading("Loading...")
+
+        if(!selectedAddress?._id){
+          toast.error('Please select a delivery address before proceeding to payment')
+          return
+        }
+
+        if (totalPrice < 50) {
+          toast.error('Online payment is available for orders of ₹50 or more.')
+          return
+        }
+
+        const loadingToast = toast.loading("Loading...")
+
         const stripePublicKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY
         const stripePromise = await loadStripe(stripePublicKey)
        
@@ -62,13 +114,28 @@ const CheckoutPage = () => {
             ...SummaryApi.payment_url,
             data : {
               list_items : cartItemsList,
-              addressId : addressList[selectAddress]?._id,
-              subTotalAmt : totalPrice,
-              totalAmt :  totalPrice,
+              addressId : selectedAddress?._id,
             }
         })
 
+        toast.dismiss(loadingToast)
+
         const { data : responseData } = response
+
+        const pendingOrderSummary = {
+          paymentType : 'Paid',
+          paymentStatus : 'paid',
+          totalAmount : totalPrice,
+          products : cartItemsList.map(item => ({
+            productDetails : item.productId,
+            quantity : item.quantity || 1,
+            subtotal : Number(item.productId.price || 0) * Number(item.quantity || 1),
+            price : Number(item.productId.price || 0)
+          })),
+          deliveryAddress : selectedAddress,
+        }
+
+        localStorage.setItem('pendingOrderSummary', JSON.stringify(pendingOrderSummary))
 
         stripePromise.redirectToCheckout({ sessionId : responseData.id })
         
@@ -79,6 +146,7 @@ const CheckoutPage = () => {
           fetchOrder()
         }
     } catch (error) {
+        toast.dismiss()
         AxiosToastError(error)
     }
   }
@@ -92,10 +160,10 @@ const CheckoutPage = () => {
             {
               addressList.map((address, index) => {
                 return (
-                  <label htmlFor={"address" + index} className={!address.status && "hidden"}>
+                  <label key={address._id || index} htmlFor={"address" + index} className={!address.status && "hidden"}>
                     <div className='border rounded p-3 flex gap-3 hover:bg-blue-50'>
                       <div>
-                        <input id={"address" + index} type='radio' value={index} onChange={(e) => setSelectAddress(e.target.value)} name='address' />
+                        <input id={"address" + index} type='radio' value={index} checked={Number(selectAddress) === index} onChange={(e) => setSelectAddress(Number(e.target.value))} name='address' />
                       </div>
                       <div>
                         <p>{address.address_line}</p>
@@ -141,9 +209,40 @@ const CheckoutPage = () => {
             </div>
           </div>
           <div className='w-full flex flex-col gap-4'>
-            <button className='py-2 px-4 bg-green-600 hover:bg-green-700 rounded text-white font-semibold' onClick={handleOnlinePayment}>Online Payment</button>
+          {!selectedAddress?._id ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+              <p className="text-yellow-700 font-medium">
+                Please select or add a delivery address to proceed.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <button
+                  className={`w-full py-2 px-4 rounded font-semibold ${
+                    totalPrice < 50
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'border-2 border-green-600 text-green-600 hover:bg-green-600 hover:text-white'
+                  }`}
+                  disabled={totalPrice < 50}
+                  onClick={handleOnlinePayment}
+                >
+                  Online Payment
+                </button>
 
-            <button className='py-2 px-4 border-2 border-green-600 font-semibold text-green-600 hover:bg-green-600 hover:text-white' onClick={handleCashOnDelivery}>Cash on Delivery</button>
+                {totalPrice < 50 && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Online payment is available for orders of ₹50 or more.
+                  </p>
+                )}
+              </div>
+
+              <button className='py-2 px-4 border-2 border-green-600 font-semibold text-green-600 hover:bg-green-600 hover:text-white' onClick={handleCashOnDelivery}>
+                Cash on Delivery
+              </button>
+            </>
+          )}
+
           </div>
         </div>
       </div>
