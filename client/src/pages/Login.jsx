@@ -4,10 +4,11 @@ import toast from 'react-hot-toast';
 import Axios from '../utils/Axios';
 import SummaryApi from '../common/SummaryApi';
 import AxiosToastError from '../utils/AxiosToastError';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import fetchUserDetails from '../utils/fetchUserDetails';
 import { useDispatch } from 'react-redux';
 import { setUserDetails } from '../store/userSlice';
+import { useEffect } from 'react';
 
 const Login = () => {
     const [data, setData] = useState({
@@ -16,8 +17,16 @@ const Login = () => {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [bannerMessage, setBannerMessage] = useState('');
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.state?.bannerMessage) {
+            setBannerMessage(location.state.bannerMessage)
+        }
+    }, [location.state])
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -51,14 +60,20 @@ const Login = () => {
                 }
             }
         } catch (error) {
-            AxiosToastError(error);
+            const message = error?.response?.data?.message || ''
+
+            if (message === 'Please verify your email before logging in.') {
+                setBannerMessage('Please verify your email address using the verification link sent to your registered email address.')
+            } else {
+                AxiosToastError(error);
+            }
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-50 px-4 py-12">
+        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-200 px-4 py-12">
             <div className="w-full max-w-md">
                 <div className="bg-white rounded-lg shadow-xl overflow-hidden">
                     <div className="bg-gradient-to-r from-green-700 to-green-600 p-6 text-center">
@@ -67,6 +82,12 @@ const Login = () => {
                     </div>
                     
                     <div className="p-8">
+                        {bannerMessage && (
+                            <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                                {bannerMessage}
+                            </div>
+                        )}
+
                         <form className="space-y-6" onSubmit={handleSubmit}>
                             <div className="space-y-2">
                                 <label htmlFor="email" className="text-sm font-medium text-gray-700 block">Email Address</label>

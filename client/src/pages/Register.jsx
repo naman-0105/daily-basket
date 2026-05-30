@@ -64,16 +64,16 @@ const Register = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-50 px-4 py-12">
+        <div className="h-[calc(100vh-80px)] flex items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-200 px-4 overflow-hidden">
             <div className="w-full max-w-md">
                 <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-                    <div className="bg-gradient-to-r from-green-700 to-green-600 p-6 text-center">
+                    <div className="bg-gradient-to-r from-green-700 to-green-600 p-3 text-center">
                         <h2 className="text-3xl font-bold text-white">Create Account</h2>
-                        <p className="text-green-100 mt-2">Join daily-basket today</p>
+                        <p className="text-green-100 mt-2">Join daily basket today</p>
                     </div>
                     
-                    <div className="p-8">
-                        <form className="space-y-5" onSubmit={handleSubmit}>
+                    <div className="p-5">
+                        <form className="space-y-3" onSubmit={handleSubmit}>
                             <div className="space-y-2">
                                 <label htmlFor="name" className="text-sm font-medium text-gray-700 block">Full Name</label>
                                 <div className="relative">
@@ -102,7 +102,7 @@ const Register = () => {
                                     <input
                                         type="email"
                                         id="email"
-                                        className="pl-10 w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-all"
+                                        className="pl-10 w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent transition-all"
                                         name="email"
                                         value={data.email}
                                         onChange={handleChange}

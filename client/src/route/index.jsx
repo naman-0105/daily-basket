@@ -10,6 +10,7 @@ const Register = lazy(() => import("../pages/Register"));
 const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
 const OtpVerification = lazy(() => import("../pages/OtpVerification"));
 const ResetPassword = lazy(() => import("../pages/ResetPassword"));
+const VerifyEmail = lazy(() => import("../pages/VerifyEmail"));
 const UserMenuMobile = lazy(() => import("../pages/UserMenuMobile"));
 const Dashboard = lazy(() => import("../layouts/Dashboard"));
 const Profile = lazy(() => import("../pages/Profile"));
@@ -67,6 +68,10 @@ const router = createBrowserRouter([
                 element : <SuspenseLayout><ResetPassword/></SuspenseLayout>
             },
             {
+                path : "verify-email",
+                element : <SuspenseLayout><VerifyEmail/></SuspenseLayout>
+            },
+            {
                 path : "user",
                 element : <SuspenseLayout><UserMenuMobile/></SuspenseLayout>
             },
@@ -77,6 +82,10 @@ const router = createBrowserRouter([
                     {
                         path : "profile",
                         element : <SuspenseLayout><Profile/></SuspenseLayout>
+                    },
+                    {
+                        path : "myorders/:orderId",
+                        element : <SuspenseLayout><MyOrders/></SuspenseLayout>
                     },
                     {
                         path : "myorders",
