@@ -1,39 +1,72 @@
 import Stripe from "../config/stripe.js";
+import sendEmail from "../config/sendEmail.js";
 import CartProductModel from "../models/cartproduct.model.js";
 import OrderModel from "../models/order.model.js";
 import UserModel from "../models/user.model.js";
 import mongoose from "mongoose";
+import orderPlacedTemplate from "../utils/orderPlacedTemplate.js";
+import paymentSuccessTemplate from "../utils/paymentSuccessTemplate.js";
 
  export async function CashOnDeliveryOrderController(request,response){
     try {
         const userId = request.userId // auth middleware 
-        const { list_items, totalAmt, addressId,subTotalAmt } = request.body 
+        const { list_items, addressId } = request.body 
 
-        const payload = list_items.map(el => {
+        if (!addressId) {
+            return response.status(400).json({
+                message : "Please select a delivery address before placing order",
+                error : true,
+                success : false
+            })
+        }
+
+        const orderId = `ORD-${new mongoose.Types.ObjectId()}`
+
+        const products = list_items.map(el => {
+            const quantity = Number(el.quantity || 1)
+            const itemPrice = Number(pricewithDiscount(el.productId.price, el.productId.discount))
+            const lineTotal = itemPrice * quantity
+
             return({
-                userId : userId,
-                orderId : `ORD-${new mongoose.Types.ObjectId()}`,
-                productId : el.productId._id, 
-                product_details : {
+                productId : el.productId._id,
+                productDetails : {
                     name : el.productId.name,
-                    image : el.productId.image
-                } ,
-                paymentId : "",
-                payment_status : "CASH ON DELIVERY",
-                delivery_address : addressId ,
-                subTotalAmt  : subTotalAmt,
-                totalAmt  :  totalAmt,
+                    image : Array.isArray(el.productId.image) ? el.productId.image : (el.productId.image ? [el.productId.image] : [])
+                },
+                quantity : quantity,
+                price : itemPrice,
+                subtotal : lineTotal,
             })
         })
 
-        const generatedOrder = await OrderModel.insertMany(payload)
+        const totalAmount = products.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
+
+        const orderDoc = {
+            userId : userId,
+            orderId : orderId,
+            products : products,
+            paymentId : "",
+            paymentStatus : "CASH ON DELIVERY",
+            deliveryAddress : addressId,
+            totalAmount : totalAmount,
+            orderStatus : "pending"
+        }
+
+        const generatedOrder = await OrderModel.create(orderDoc)
+        const user = await UserModel.findById(userId)
+
+        await sendOrderConfirmationEmail({
+            user,
+            orderItems : [generatedOrder],
+            paymentType : 'COD'
+        })
 
         ///remove from the cart
         const removeCartItems = await CartProductModel.deleteMany({ userId : userId })
         const updateInUser = await UserModel.updateOne({ _id : userId }, { shopping_cart : []})
 
         return response.json({
-            message : "Order successfully",
+            message : "Your order is placed successfully",
             error : false,
             success : true,
             data : generatedOrder
@@ -54,10 +87,63 @@ export const pricewithDiscount = (price,dis = 1)=>{
     return actualPrice
 }
 
+const sendOrderConfirmationEmail = async ({ user, orderItems, paymentType }) => {
+    const items = Array.isArray(orderItems) ? orderItems : [orderItems]
+
+    if (!user || !items?.length) return
+
+    const totalAmount = items.reduce((sum, item) => sum + Number(item.totalAmount || item.totalAmt || 0), 0)
+    const orderIds = items.map(item => item.orderId)
+    const orderLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/myorders/${orderIds[0]}`
+
+    await sendEmail({
+        sendTo : user.email,
+        subject : paymentType === 'PAID' ? 'Payment Successful - Daily Basket' : 'Order Placed - Daily Basket',
+        html : paymentType === 'PAID'
+            ? paymentSuccessTemplate({
+                name : user.name || 'Customer',
+                totalAmount,
+                orderIds,
+                orderLink,
+            })
+            : orderPlacedTemplate({
+                name : user.name || 'Customer',
+                paymentType : 'Cash on Delivery',
+                totalAmount,
+                itemCount : items[0]?.products?.length || 1,
+                orderIds,
+                orderLink,
+            })
+    })
+
+    if (paymentType === 'PAID') {
+        await sendEmail({
+            sendTo : user.email,
+            subject : 'Order Placed - Daily Basket',
+            html : orderPlacedTemplate({
+                name : user.name || 'Customer',
+                paymentType : 'Paid',
+                totalAmount,
+                itemCount : items[0]?.products?.length || 1,
+                orderIds,
+                orderLink,
+            })
+        })
+    }
+}
+
 export async function paymentController(request,response){
     try {
         const userId = request.userId // auth middleware 
         const { list_items, totalAmt, addressId,subTotalAmt } = request.body 
+
+        if(!addressId){
+            return response.status(400).json({
+                message : 'Please select a delivery address before proceeding to payment',
+                error : true,
+                success : false
+            })
+        }
 
         const user = await UserModel.findById(userId)
 
@@ -121,42 +207,36 @@ const getOrderProductItems = async({
     paymentId,
     payment_status,
  })=>{
-    const productList = []
+    const products = []
+    let totalAmount = 0
 
     if(lineItems?.data?.length){
         for(const item of lineItems.data){
             const product = await Stripe.products.retrieve(item.price.product)
+            const quantity = Number(item.quantity || 1)
+            const amountTotal = Number(item.amount_total / 100)
+            const unitPrice = Number(item.price.unit_amount / 100)
 
-            const existingOrder = await OrderModel.findOne({
-                userId : userId,
+            const productPayload = {
                 productId : product.metadata.productId,
-                paymentId : paymentId,
-            })
-
-            if(existingOrder){
-                continue
-            }
-
-            const paylod = {
-                userId : userId,
-                orderId : `ORD-${new mongoose.Types.ObjectId()}`,
-                productId : product.metadata.productId, 
-                product_details : {
+                productDetails : {
                     name : product.name,
                     image : product.images
-                } ,
-                paymentId : paymentId,
-                payment_status : payment_status,
-                delivery_address : addressId,
-                subTotalAmt  : Number(item.amount_total / 100),
-                totalAmt  :  Number(item.amount_total / 100),
+                },
+                quantity : quantity,
+                price : unitPrice,
+                subtotal : amountTotal,
             }
 
-            productList.push(paylod)
+            products.push(productPayload)
+            totalAmount += amountTotal
         }
     }
 
-    return productList
+    return {
+        products,
+        totalAmount,
+    }
 }
 
 //http://localhost:8080/api/order/webhook
@@ -190,7 +270,7 @@ export async function webhookStripe(request,response){
                 const session = event.data.object;
                 const lineItems = await Stripe.checkout.sessions.listLineItems(session.id)
                 const userId = session.metadata.userId
-                const orderProduct = await getOrderProductItems({
+                const orderSummary = await getOrderProductItems({
                     lineItems : lineItems,
                     userId : userId,
                     addressId : session.metadata.addressId,
@@ -198,13 +278,37 @@ export async function webhookStripe(request,response){
                     payment_status : session.payment_status,
                 })
 
-                if(!orderProduct.length){
+                if(!orderSummary.products.length){
                     return response.status(200).json({received: true, duplicate: true});
                 }
 
-                const order = await OrderModel.insertMany(orderProduct)
+                const existingOrder = await OrderModel.findOne({ paymentId : session.payment_intent })
+                if (existingOrder) {
+                    return response.status(200).json({received: true, duplicate: true});
+                }
 
-                if(Boolean(order[0])){
+                const orderDoc = {
+                    userId : userId,
+                    orderId : `ORD-${new mongoose.Types.ObjectId()}`,
+                    products : orderSummary.products,
+                    paymentId : session.payment_intent,
+                    paymentStatus : session.payment_status || 'paid',
+                    deliveryAddress : session.metadata.addressId,
+                    totalAmount : orderSummary.totalAmount,
+                    orderStatus : 'pending'
+                }
+
+                const order = await OrderModel.create(orderDoc)
+
+                if(Boolean(order)){
+                    const orderUser = await UserModel.findById(userId)
+
+                    await sendOrderConfirmationEmail({
+                        user : orderUser,
+                        orderItems : [order],
+                        paymentType : 'PAID'
+                    })
+
                     await UserModel.findByIdAndUpdate(userId,{
                         shopping_cart : []
                     })
@@ -230,11 +334,28 @@ export async function webhookStripe(request,response){
 export async function getOrderDetailsController(request,response){
     try {
         const userId = request.userId // order id
-        const orderlist = await OrderModel.find({ userId : userId }).sort({ createdAt : -1 }).populate('delivery_address').lean();
+        const orderlist = await OrderModel.find({ userId : userId }).sort({ createdAt : -1 }).populate('deliveryAddress').lean();
+
+        const normalizedOrders = orderlist.map(order => ({
+            ...order,
+            products : Array.isArray(order.products) && order.products.length
+                ? order.products
+                : [{
+                    productId : order.productId,
+                    productDetails : order.product_details,
+                    quantity : Number(order.quantity || 1),
+                    price : Number(order.totalAmt || order.subTotalAmt || 0),
+                    subtotal : Number(order.totalAmt || order.subTotalAmt || 0),
+                }],
+            paymentStatus : order.paymentStatus || order.payment_status || 'CASH ON DELIVERY',
+            orderStatus : order.orderStatus || order.status || 'pending',
+            totalAmount : Number(order.totalAmount || order.totalAmt || 0),
+            deliveryAddress : order.deliveryAddress || order.delivery_address,
+        }))
 
         return response.json({
             message : "order list",
-            data : orderlist,
+            data : normalizedOrders,
             error : false,
             success : true
         })

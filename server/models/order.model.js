@@ -1,5 +1,30 @@
 import mongoose from "mongoose";
 
+const orderItemSchema = new mongoose.Schema({
+    productId : {
+        type : mongoose.Schema.ObjectId,
+        ref : "product"
+    },
+    productDetails : {
+        name : String,
+        image : Array,
+    },
+    quantity : {
+        type : Number,
+        default : 1
+    },
+    price : {
+        type : Number,
+        default : 0
+    },
+    subtotal : {
+        type : Number,
+        default : 0
+    }
+}, {
+    _id : false
+})
+
 const orderSchema = new mongoose.Schema({
     userId : {
         type : mongoose.Schema.ObjectId,
@@ -10,33 +35,27 @@ const orderSchema = new mongoose.Schema({
         required : [true, "Provide orderId"],
         unique : true
     },
-    productId : {
-        type : mongoose.Schema.ObjectId,
-        ref : "product"
-    },
-    product_details : {
-        name : String,
-        image : Array,
-    },
+    products : [orderItemSchema],
     paymentId : {
         type : String,
         default : ""
     },
-    payment_status : {
+    paymentStatus : {
         type : String,
         default : ""
     },
-    delivery_address : {
+    deliveryAddress : {
         type : mongoose.Schema.ObjectId,
         ref : 'address'
     },
-    subTotalAmt : {
+    totalAmount : {
         type : Number,
         default : 0
     },
-    totalAmt : {
-        type : Number,
-        default : 0
+    orderStatus : {
+        type : String,
+        enum : ['pending', 'processing', 'shipped', 'delivered'],
+        default : 'pending'
     },
     invoice_receipt : {
         type : String,
@@ -45,11 +64,6 @@ const orderSchema = new mongoose.Schema({
     orderDate: {
         type: Date,
         default: Date.now
-    },
-    status: {
-        type: String,
-        enum: ['pending', 'processing', 'shipped', 'delivered'],
-        default: 'pending'
     }
 },{
     timestamps : true
