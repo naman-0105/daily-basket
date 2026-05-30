@@ -1,29 +1,49 @@
-import { Resend } from 'resend';
+import * as Brevo from '@getbrevo/brevo'
 import dotenv from 'dotenv'
+
 dotenv.config()
 
-if(!process.env.RESEND_API){
-    console.log("Provide RESEND_API in side the .env file")
+const brevoApiKey = process.env.BREVO_API_KEY
+const senderEmail = process.env.BREVO_SENDER_EMAIL
+const senderName = process.env.BREVO_SENDER_NAME || 'Daily Basket'
+
+if(!brevoApiKey){
+    console.log('Provide BREVO_API_KEY in the .env file')
 }
 
-const resend = new Resend(process.env.RESEND_API);
+if(!senderEmail){
+    console.log('Provide BREVO_SENDER_EMAIL in the .env file')
+}
+
+const apiInstance = new Brevo.TransactionalEmailsApi()
+
+if (brevoApiKey) {
+    apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, brevoApiKey)
+}
 
 const sendEmail = async({sendTo, subject, html })=>{
     try {
-        const { data, error } = await resend.emails.send({
-            from: 'daily-basket <noreply@amitprajapati.co.in>',
-            to: sendTo,
-            subject: subject,
-            html: html,
-        });
-
-        if (error) {
-            return console.error({ error });
+        if (!brevoApiKey || !senderEmail) {
+            console.error('Brevo email configuration is missing')
+            return null
         }
 
-        return data
+        const sendSmtpEmail = new Brevo.SendSmtpEmail()
+
+        sendSmtpEmail.sender = {
+            email: senderEmail,
+            name: senderName,
+        }
+        sendSmtpEmail.to = [{ email: sendTo }]
+        sendSmtpEmail.subject = subject
+        sendSmtpEmail.htmlContent = html
+
+        const response = await apiInstance.sendTransacEmail(sendSmtpEmail)
+
+        return response
     } catch (error) {
         console.log(error)
+        return null
     }
 }
 

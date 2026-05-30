@@ -41,6 +41,10 @@ const SummaryApi = {
         url : '/api/user/update-user',
         method : 'put'
     },
+    verifyEmail : {
+        url : '/api/user/verify-email',
+        method : 'post'
+    },
     addCategory : {
         url : '/api/category/add-category',
         method : 'post'

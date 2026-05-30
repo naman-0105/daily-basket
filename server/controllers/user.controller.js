@@ -47,7 +47,7 @@ export async function registerUserController(request,response){
 
         const verifyEmail = await sendEmail({
             sendTo : email,
-            subject : "Verify email from binkeyit",
+            subject : "Welcome to Daily Basket! Verify Your Email",
             html : verifyEmailTemplate({
                 name,
                 url : VerifyEmailUrl
@@ -55,7 +55,7 @@ export async function registerUserController(request,response){
         })
 
         return response.json({
-            message : "User register successfully",
+            message : "User registered successfully",
             error : false,
             success : true,
             data : save
@@ -89,7 +89,7 @@ export async function verifyEmailController(request,response){
         })
 
         return response.json({
-            message : "Verify email done",
+            message : "Email successfully verified",
             success : true,
             error : false
         })
@@ -131,6 +131,14 @@ export async function loginController(request,response){
                 message : "Contact to Admin",
                 error : true,
                 success : false
+            })
+        }
+
+        if (!user.verify_email) {
+            return response.status(400).json({
+                message: "Please verify your email before logging in.",
+                error: true,
+                success: false
             })
         }
 
@@ -303,7 +311,7 @@ export async function forgotPasswordController(request,response) {
 
         await sendEmail({
             sendTo : email,
-            subject : "Forgot password from Binkeyit",
+            subject : "Your Daily Basket Password Reset OTP",
             html : forgotPasswordTemplate({
                 name : user.name,
                 otp : otp
