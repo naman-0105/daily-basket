@@ -19,6 +19,16 @@ function App() {
   const dispatch = useDispatch()
   const location = useLocation()
 
+  const hideFooterRoutes = [
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/verify-email',
+    '/checkout'
+]
+
+const showFooter = !hideFooterRoutes.includes(location.pathname)
+
   const fetchUser = async() => {
     try {
         const token = localStorage.getItem('accesstoken');
@@ -90,7 +100,7 @@ function App() {
       <main className='min-h-[78vh]'>
           <Outlet/>
       </main>
-      <Footer/>
+      {showFooter && <Footer />}
       <Toaster/>
       {
         location.pathname !== '/checkout' && (
